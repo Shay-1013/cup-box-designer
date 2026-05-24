@@ -1,0 +1,1625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>把手杯包装盒设计 · AI助教版</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    width: 100%; height: 100%;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #ffffff;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ===== 选择界面 ===== */
+  #selectScreen {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: #fafafa;
+    z-index: 100;
+  }
+  #selectScreen.hidden { display: none; }
+
+  .select-title {
+    font-size: 32px; font-weight: 800; color: #333;
+    margin-bottom: 12px;
+    letter-spacing: 2px;
+  }
+  .select-subtitle {
+    font-size: 16px; color: #888; margin-bottom: 40px;
+  }
+  .cup-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    max-width: 480px;
+    padding: 0 20px;
+  }
+  .cup-card {
+    background: #fff;
+    border: 3px solid #e0e0e0;
+    border-radius: 20px;
+    padding: 28px 20px 20px;
+    cursor: pointer;
+    display: flex; flex-direction: column;
+    align-items: center; gap: 14px;
+    transition: transform 0.18s, border-color 0.18s, box-shadow 0.18s;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.06);
+  }
+  .cup-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.10);
+  }
+  .cup-card:active {
+    transform: translateY(0px);
+  }
+  .cup-card[data-cup="A"] { border-color: #facc15; }
+  .cup-card[data-cup="A"]:hover { background: #fffbe6; }
+  .cup-card[data-cup="B"] { border-color: #60a5fa; }
+  .cup-card[data-cup="B"]:hover { background: #eff6ff; }
+  .cup-card[data-cup="C"] { border-color: #4ade80; }
+  .cup-card[data-cup="C"]:hover { background: #f0fdf4; }
+  .cup-card[data-cup="D"] { border-color: #f472b6; }
+  .cup-card[data-cup="D"]:hover { background: #fdf2f8; }
+
+  .cup-card svg { width: 90px; height: 90px; }
+  .cup-label {
+    font-size: 22px; font-weight: 700; color: #333;
+  }
+  .cup-dims {
+    font-size: 12px; color: #999;
+    font-family: "SF Mono", Consolas, monospace;
+  }
+
+  /* ===== API Key 设置 ===== */
+  .api-setup {
+    margin-top: 30px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 20px;
+  }
+  .api-setup input {
+    width: 280px; height: 38px;
+    border: 2px solid #ddd; border-radius: 10px;
+    padding: 0 14px; font-size: 14px;
+    font-family: "SF Mono", Consolas, monospace;
+    color: #555; user-select: text; -webkit-user-select: text;
+  }
+  .api-setup input:focus { border-color: #60a5fa; outline: none; }
+  .api-setup label { font-size: 13px; color: #888; font-weight: 600; }
+  .api-hint { font-size: 11px; color: #bbb; margin-top: 6px; }
+
+  @media (max-width: 480px) {
+    .select-title { font-size: 24px; }
+    .cup-grid { gap: 16px; max-width: 360px; }
+    .cup-card { padding: 20px 14px 16px; }
+    .cup-card svg { width: 70px; height: 70px; }
+    .cup-label { font-size: 18px; }
+    .api-setup input { width: 200px; }
+  }
+
+  /* ===== 操作界面 ===== */
+  #workScreen { position: absolute; inset: 0; display: flex; }
+  #workScreen.hidden { display: none; }
+
+  /* 左侧3D区域 */
+  .view-area { position: relative; flex: 1; min-width: 0; }
+  #canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
+
+  .status-bar {
+    position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+    background: #fff; border: 2px solid #333;
+    border-radius: 14px; padding: 14px 26px;
+    font-size: 26px; font-weight: 700; color: #333;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.08);
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    white-space: nowrap; z-index: 10;
+  }
+  .status-bar .row1 { display: flex; align-items: center; gap: 14px; }
+  .status-bar .dims { font-family: "SF Mono", Consolas, monospace; }
+  .status-bar .fit-tag { padding: 6px 20px; border-radius: 10px; font-size: 22px; font-weight: 700; color: #fff; }
+  .fit-tag.fit-yes { background: #22c55e; }
+  .fit-tag.fit-no  { background: #ef4444; }
+  .fit-tag.fit-tight { background: #f59e0b; }
+  .fit-tag.fit-loose { background: #f97316; }
+  .fit-tag.fit-neutral { background: #94a3b8; }
+
+  .cup-indicator {
+    font-size: 14px; font-weight: 600; padding: 3px 12px;
+    border-radius: 8px; color: #fff;
+  }
+
+  .action-panel {
+    position: absolute; top: 20px; right: 20px;
+    display: flex; flex-direction: column; gap: 12px; z-index: 10;
+  }
+  .action-btn {
+    border: 2px solid #333; background: #fff;
+    border-radius: 12px; padding: 16px 24px;
+    font-size: 22px; font-weight: 700; color: #333;
+    cursor: pointer; font-family: inherit;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.08);
+    min-width: 180px;
+  }
+  .action-btn.primary { background: #fef08a; }
+  .action-btn:active { background: #fde047; transform: translateY(1px); }
+
+  .size-panel {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: #fff; border: 2px solid #333; border-radius: 14px;
+    padding: 14px 18px; display: flex; gap: 18px; align-items: center;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.08); z-index: 10;
+  }
+  .dim-group { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .dim-group .dim-label { font-size: 14px; font-weight: 700; color: #333; }
+  .dim-controls { display: flex; align-items: center; gap: 4px; }
+  .dim-controls button {
+    width: 34px; height: 34px;
+    border: 2px solid #333; background: #fff;
+    border-radius: 8px; font-size: 20px; font-weight: 700;
+    cursor: pointer; font-family: inherit; color: #333;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0; line-height: 1;
+  }
+  .dim-controls button:active { background: #fef08a; }
+  .dim-controls input {
+    width: 58px; height: 34px;
+    border: 2px solid #333; border-radius: 8px;
+    text-align: center; font-size: 16px; font-weight: 700;
+    font-family: "SF Mono", Consolas, monospace; color: #333;
+    -moz-appearance: textfield;
+    user-select: text; -webkit-user-select: text;
+  }
+  .dim-controls input::-webkit-outer-spin-button,
+  .dim-controls input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .dim-controls .unit { font-size: 12px; color: #888; margin-left: 2px; font-weight: 600; }
+
+  .help-panel {
+    position: absolute; top: 16px; left: 16px;
+    background: #fff; border: 2px solid #333; border-radius: 12px;
+    padding: 10px 14px; font-size: 12px; color: #555; line-height: 1.7;
+    box-shadow: 0 4px 0 rgba(0,0,0,0.08); max-width: 200px; z-index: 10;
+  }
+  .help-panel b { color: #333; }
+
+  /* ===== 右侧面板（图表+AI） ===== */
+  .side-panel {
+    width: 400px; min-width: 400px;
+    display: flex; flex-direction: column;
+    border-left: 2px solid #e5e5e5;
+    background: #fafafa;
+    z-index: 20;
+  }
+
+  /* 材料用量图表 */
+  .chart-section {
+    padding: 16px 18px;
+    border-bottom: 2px solid #e5e5e5;
+    background: #fff;
+  }
+  .chart-title {
+    font-size: 15px; font-weight: 700; color: #333;
+    margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .chart-canvas-wrap {
+    width: 100%; height: 180px;
+    position: relative;
+  }
+  #chartCanvas { width: 100%; height: 100%; display: block; }
+  .chart-stats {
+    display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .stat-item {
+    background: #f0f9ff; border: 1px solid #bae6fd;
+    border-radius: 8px; padding: 6px 10px;
+    font-size: 12px; color: #0369a1; font-weight: 600;
+    display: flex; flex-direction: column; gap: 2px;
+    flex: 1; min-width: 90px;
+  }
+  .stat-item .stat-label { font-size: 10px; color: #7dd3fc; font-weight: 500; }
+  .stat-item .stat-value { font-size: 16px; font-family: "SF Mono", Consolas, monospace; }
+  .stat-item.highlight { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+  .stat-item.highlight .stat-label { color: #fbbf24; }
+
+  /* AI 对话 */
+  .ai-section {
+    flex: 1; display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .ai-header {
+    padding: 12px 16px;
+    font-size: 15px; font-weight: 700; color: #333;
+    border-bottom: 1px solid #eee;
+    background: #fff;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .ai-messages {
+    flex: 1; overflow-y: auto; padding: 12px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .ai-msg {
+    max-width: 92%; padding: 10px 14px;
+    border-radius: 14px; font-size: 14px; line-height: 1.65;
+    word-break: break-word; user-select: text; -webkit-user-select: text;
+  }
+  .ai-msg.assistant {
+    align-self: flex-start;
+    background: #fff; border: 1px solid #e5e5e5;
+    color: #333; border-radius: 14px 14px 14px 4px;
+  }
+  .ai-msg.user {
+    align-self: flex-end;
+    background: #3b82f6; color: #fff;
+    border-radius: 14px 14px 4px 14px;
+  }
+  .ai-msg.system {
+    align-self: center;
+    background: #fef9c3; border: 1px solid #fde68a;
+    color: #92400e; font-size: 12px; text-align: center;
+    border-radius: 10px;
+  }
+  .ai-msg.loading {
+    align-self: flex-start;
+    background: #fff; border: 1px solid #e5e5e5;
+    color: #999; font-style: italic;
+    border-radius: 14px 14px 14px 4px;
+  }
+  .ai-msg.loading::after {
+    content: ''; display: inline-block;
+    animation: dots 1.2s steps(3, end) infinite;
+  }
+  @keyframes dots {
+    0% { content: ''; }
+    33% { content: '.'; }
+    66% { content: '..'; }
+    100% { content: '...'; }
+  }
+
+  .ai-input-bar {
+    display: flex; gap: 8px; padding: 10px 16px;
+    border-top: 1px solid #eee; background: #fff;
+  }
+  .ai-input-bar input {
+    flex: 1; height: 38px;
+    border: 2px solid #ddd; border-radius: 10px;
+    padding: 0 12px; font-size: 14px; color: #333;
+    font-family: inherit;
+    user-select: text; -webkit-user-select: text;
+  }
+  .ai-input-bar input:focus { border-color: #3b82f6; outline: none; }
+  .ai-input-bar button {
+    height: 38px; padding: 0 16px;
+    background: #3b82f6; color: #fff; border: none;
+    border-radius: 10px; font-size: 14px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+    white-space: nowrap;
+  }
+  .ai-input-bar button:hover { background: #2563eb; }
+  .ai-input-bar button:disabled { background: #93c5fd; cursor: not-allowed; }
+  .voice-btn {
+    height: 38px; width: 38px; min-width: 38px;
+    background: #f3f4f6; color: #666; border: 2px solid #ddd;
+    border-radius: 10px; font-size: 18px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    padding: 0; transition: all 0.2s;
+  }
+  .voice-btn:hover { background: #e5e7eb; }
+  .voice-btn.recording {
+    background: #fee2e2; border-color: #ef4444; color: #ef4444;
+    animation: pulse-rec 1s ease infinite;
+  }
+  @keyframes pulse-rec {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.3); }
+    50% { box-shadow: 0 0 0 6px rgba(239,68,68,0); }
+  }
+  .tts-toggle {
+    display: flex; align-items: center; gap: 6px;
+    margin-left: auto;
+    font-size: 12px; color: #888; cursor: pointer;
+    user-select: none;
+  }
+  .tts-toggle input[type="checkbox"] {
+    width: 14px; height: 14px; cursor: pointer;
+  }
+
+  /* ===== 侧边栏切换按钮（移动端） ===== */
+  .toggle-side-btn {
+    display: none;
+    position: absolute; bottom: 90px; right: 16px;
+    width: 52px; height: 52px;
+    border-radius: 50%; border: 2px solid #333;
+    background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    font-size: 24px; cursor: pointer; z-index: 30;
+    align-items: center; justify-content: center;
+  }
+
+  @media (max-width: 800px) {
+    .help-panel { display: none; }
+    .status-bar { font-size: 14px; padding: 8px 14px; gap: 6px; }
+    .status-bar .fit-tag { font-size: 12px; padding: 3px 8px; }
+    .size-panel { gap: 10px; padding: 10px 12px; bottom: 12px; }
+    .dim-controls input { width: 48px; }
+    .dim-controls button { width: 30px; height: 30px; font-size: 18px; }
+    .action-btn { font-size: 16px; padding: 12px 16px; min-width: 140px; }
+    .side-panel {
+      position: absolute; right: 0; top: 0; bottom: 0;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+    }
+    .side-panel.open { transform: translateX(0); }
+    .toggle-side-btn { display: flex; }
+  }
+  @media (max-width: 480px) {
+    .side-panel { width: 100%; min-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== 选择界面 ===== -->
+<div id="selectScreen">
+  <div class="select-title">选择你的杯子</div>
+  <div class="select-subtitle">点击一个杯子，为它设计包装盒</div>
+  <div class="cup-grid">
+    <div class="cup-card" data-cup="A" onclick="selectCup('A')">
+      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M25 25 L30 80 L70 80 L75 25 Z" fill="#fef9c3" stroke="#facc15" stroke-width="3" stroke-linejoin="round"/>
+        <ellipse cx="50" cy="25" rx="25" ry="6" fill="#fef9c3" stroke="#facc15" stroke-width="3"/>
+        <ellipse cx="79" cy="50" rx="12" ry="16" fill="none" stroke="#facc15" stroke-width="4" stroke-linecap="round"/>
+      </svg>
+      <span class="cup-label">A 杯</span>
+      <span class="cup-dims" id="dimsA"></span>
+    </div>
+    <div class="cup-card" data-cup="B" onclick="selectCup('B')">
+      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M25 25 L30 80 L70 80 L75 25 Z" fill="#dbeafe" stroke="#60a5fa" stroke-width="3" stroke-linejoin="round"/>
+        <ellipse cx="50" cy="25" rx="25" ry="6" fill="#dbeafe" stroke="#60a5fa" stroke-width="3"/>
+        <ellipse cx="79" cy="50" rx="12" ry="16" fill="none" stroke="#60a5fa" stroke-width="4" stroke-linecap="round"/>
+      </svg>
+      <span class="cup-label">B 杯</span>
+      <span class="cup-dims" id="dimsB"></span>
+    </div>
+    <div class="cup-card" data-cup="C" onclick="selectCup('C')">
+      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M25 25 L30 80 L70 80 L75 25 Z" fill="#dcfce7" stroke="#4ade80" stroke-width="3" stroke-linejoin="round"/>
+        <ellipse cx="50" cy="25" rx="25" ry="6" fill="#dcfce7" stroke="#4ade80" stroke-width="3"/>
+        <ellipse cx="79" cy="50" rx="12" ry="16" fill="none" stroke="#4ade80" stroke-width="4" stroke-linecap="round"/>
+      </svg>
+      <span class="cup-label">C 杯</span>
+      <span class="cup-dims" id="dimsC"></span>
+    </div>
+    <div class="cup-card" data-cup="D" onclick="selectCup('D')">
+      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M25 25 L30 80 L70 80 L75 25 Z" fill="#fce7f3" stroke="#f472b6" stroke-width="3" stroke-linejoin="round"/>
+        <ellipse cx="50" cy="25" rx="25" ry="6" fill="#fce7f3" stroke="#f472b6" stroke-width="3"/>
+        <ellipse cx="79" cy="50" rx="12" ry="16" fill="none" stroke="#f472b6" stroke-width="4" stroke-linecap="round"/>
+      </svg>
+      <span class="cup-label">D 杯</span>
+      <span class="cup-dims" id="dimsD"></span>
+    </div>
+  </div>
+  <div class="api-setup">
+    <label>DeepSeek API Key：</label>
+    <input type="password" id="apiKeyInput" placeholder="sk-..." value="">
+  </div>
+  <div class="api-hint">输入后即可使用AI助教功能（不输入也可正常操作）</div>
+</div>
+
+<!-- ===== 操作界面 ===== -->
+<div id="workScreen" class="hidden">
+  <div class="view-area">
+    <canvas id="canvas"></canvas>
+
+    <div class="status-bar">
+      <div class="row1">
+        <span class="cup-indicator" id="cupIndicator">A 杯</span>
+        <span>包装盒:</span>
+        <span class="dims"><span id="dispL">8</span> × <span id="dispW">8</span> × <span id="dispH">12</span> cm</span>
+      </div>
+      <span id="fitTag" class="fit-tag fit-yes">装得下 ✓</span>
+    </div>
+
+    <div class="help-panel">
+      <b>鼠标:</b> 拖动转视角 / 滚轮缩放<br>
+      <b>触屏:</b> 单指转视角 / 双指缩放<br>
+      点右侧 <b>一键包装</b> 开始
+    </div>
+
+    <div class="action-panel">
+      <button class="action-btn" id="btnBack">◁ 返回选择</button>
+      <button class="action-btn primary" id="btnWrap">📦 一键包装</button>
+      <button class="action-btn" id="btnReset">↺ 盒子归位</button>
+    </div>
+
+    <div class="size-panel">
+      <div class="dim-group">
+        <div class="dim-label">长</div>
+        <div class="dim-controls">
+          <button data-dim="L" data-delta="-0.5">−</button>
+          <input type="number" id="inpL" value="8" step="0.5" min="1">
+          <button data-dim="L" data-delta="0.5">+</button>
+          <span class="unit">cm</span>
+        </div>
+      </div>
+      <div class="dim-group">
+        <div class="dim-label">宽</div>
+        <div class="dim-controls">
+          <button data-dim="W" data-delta="-0.5">−</button>
+          <input type="number" id="inpW" value="8" step="0.5" min="1">
+          <button data-dim="W" data-delta="0.5">+</button>
+          <span class="unit">cm</span>
+        </div>
+      </div>
+      <div class="dim-group">
+        <div class="dim-label">高</div>
+        <div class="dim-controls">
+          <button data-dim="H" data-delta="-0.5">−</button>
+          <input type="number" id="inpH" value="12" step="0.5" min="1">
+          <button data-dim="H" data-delta="0.5">+</button>
+          <span class="unit">cm</span>
+        </div>
+      </div>
+    </div>
+
+    <button class="toggle-side-btn" id="toggleSide" onclick="toggleSidePanel()">💬</button>
+  </div>
+
+  <!-- 右侧面板 -->
+  <div class="side-panel" id="sidePanel">
+    <!-- 材料用量图表 -->
+    <div class="chart-section">
+      <div class="chart-title">📊 材料用量分析</div>
+      <div class="chart-canvas-wrap">
+        <canvas id="chartCanvas"></canvas>
+      </div>
+      <div class="chart-stats">
+        <div class="stat-item highlight">
+          <span class="stat-label">总表面积</span>
+          <span class="stat-value" id="statArea">--</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">体积利用率</span>
+          <span class="stat-value" id="statUtil">--</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">盒子体积</span>
+          <span class="stat-value" id="statVol">--</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI 对话 -->
+    <div class="ai-section">
+      <div class="ai-header">
+        🤖 AI 助教（DeepSeek）
+        <label class="tts-toggle"><input type="checkbox" id="ttsToggle" checked> 🔊 语音播报</label>
+      </div>
+      <div class="ai-messages" id="aiMessages">
+        <div class="ai-msg system">选好杯子、调整尺寸后，点击"一键包装"，AI助教会自动点评你的方案</div>
+      </div>
+      <div class="ai-input-bar">
+        <input type="text" id="aiInput" placeholder="向AI助教提问..." onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceInput()" title="语音输入">🎤</button>
+        <button onclick="sendChat()" id="aiSendBtn">发送</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ===== DeepSeek API =====
+function getApiKey() {
+  return document.getElementById('apiKeyInput').value.trim();
+}
+
+const AI_SYSTEM_PROMPT = `你是一位经验丰富的小学六年级数学老师，正在课堂上指导学生为把手杯设计长方体包装盒。你生活经验丰富，善于用生活中的真实例子帮学生理解。
+
+你的教学风格：
+1. 不直接给最优答案，用简短的提问或生活场景引导学生自己发现
+2. 每次回复简洁明了，不超过3-4句话
+3. 语气亲切温和，适合小学生
+4. 善于联系生活实际，举学生身边的例子
+5. 鼓励学生从"装得下""省材料""实际好用"三个角度综合思考
+
+你掌握的知识要点：
+
+【数学知识】
+- 长方体表面积 = 2×(长×宽 + 长×高 + 宽×高)
+- 体积 = 长×宽×高
+- 包装盒的长要能容纳杯子含把手的最大宽度
+
+【生活中包装盒为什么要留余量——你要自然地引导学生想到这些】
+- 容错与公差：工厂批量生产的杯子，每个尺寸会有微小差异，盒子要能装下最大的那个
+- 填充保护：实际包装要放泡沫、珍珠棉、气泡膜等填充物防震，需要预留空间。可以让学生回忆拆快递时看到的填充物
+- 方便取放：手指要伸进去才能拿出杯子，太紧了拔不出来。可以让学生想想从鞋盒里拿鞋的体验
+- 运输安全：快递运输会被挤压、颠簸，留缓冲空间能防止杯子碎裂
+- 美观展示：有些包装盒会在杯子周围放装饰纸、说明卡片，也需要空间
+- 盒盖结构：实际的盒子需要折叠的插舌、粘贴边等结构，纯净尺寸不够
+
+【引导策略】
+- 当学生盒子太紧时：引导想"你网购收到的杯子，盒子里是不是还有泡沫？""如果100个杯子里有一个稍微大一点点，这个盒子还装得下吗？"
+- 当学生盒子太大时：引导想"如果要寄1000个杯子，每个盒子大1厘米，加起来要多占多少空间？多花多少纸？"
+- 当学生问为什么不能刚好时：用鞋盒、手机盒、牛奶箱等学生熟悉的例子类比
+- 当盒子合适时：追问"你觉得每个方向多留多少合适？有没有一个方向特别需要多留？"（把手方向更突出更脆弱）
+
+重要：你只讨论包装盒设计相关的问题，不讨论其他话题。如果学生问无关的问题，温和地把话题引回来。`;
+
+let chatHistory = [];
+let isAiLoading = false;
+
+async function callDeepSeek(userMsg, contextInfo) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    addAiMessage('system', '请先在首页输入 DeepSeek API Key 才能使用AI助教功能哦');
+    return;
+  }
+
+  isAiLoading = true;
+  document.getElementById('aiSendBtn').disabled = true;
+
+  // 添加带上下文的用户消息
+  const fullUserMsg = contextInfo
+    ? `【当前状态】${contextInfo}\n\n【学生操作/提问】${userMsg}`
+    : userMsg;
+
+  chatHistory.push({ role: 'user', content: fullUserMsg });
+
+  // 显示 loading
+  const loadingEl = addAiMessage('loading', '思考中');
+
+  try {
+    const resp = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: AI_SYSTEM_PROMPT },
+          ...chatHistory
+        ],
+        max_tokens: 300,
+        temperature: 0.7
+      })
+    });
+
+    const data = await resp.json();
+    loadingEl.remove();
+
+    if (data.choices && data.choices[0]) {
+      const reply = data.choices[0].message.content;
+      chatHistory.push({ role: 'assistant', content: reply });
+      addAiMessage('assistant', reply);
+      speakText(reply);
+    } else if (data.error) {
+      addAiMessage('system', 'API 错误：' + (data.error.message || '未知错误'));
+    }
+  } catch (err) {
+    loadingEl.remove();
+    addAiMessage('system', '网络错误，请检查API Key是否正确');
+  }
+
+  isAiLoading = false;
+  document.getElementById('aiSendBtn').disabled = false;
+}
+
+function addAiMessage(role, text) {
+  const msgDiv = document.createElement('div');
+  msgDiv.className = 'ai-msg ' + role;
+  msgDiv.textContent = text;
+  const container = document.getElementById('aiMessages');
+  container.appendChild(msgDiv);
+  container.scrollTop = container.scrollHeight;
+  return msgDiv;
+}
+
+function sendChat() {
+  if (isAiLoading) return;
+  const input = document.getElementById('aiInput');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  addAiMessage('user', msg);
+  callDeepSeek(msg, buildContextString());
+}
+
+function buildContextString() {
+  if (!currentCupKey) return '';
+  const p = CUP_PRESETS[currentCupKey];
+  const area = calcSurfaceArea();
+  const boxVol = boxL * boxW * boxH;
+  const cupVol = estimateCupVolume();
+  const util = boxVol > 0 ? ((cupVol / boxVol) * 100).toFixed(1) : 0;
+
+  return `杯子：${p.label}，外轮廓尺寸 ${p.totalWidth}×${(p.topR*2).toFixed(1)}×${p.height} cm（长×宽×高，含把手）。` +
+    `学生设计的盒子尺寸：${boxL}×${boxW}×${boxH} cm（长×宽×高）。` +
+    `适配状态：${fitTag.textContent}。` +
+    `盒子表面积：${area.toFixed(1)} cm²，盒子体积：${boxVol.toFixed(1)} cm³，体积利用率：${util}%。`;
+}
+
+// 一键包装后自动触发AI点评
+function triggerAiReview() {
+  const apiKey = getApiKey();
+  if (!apiKey) return;
+
+  let prompt;
+  if (fitState === 'fit') {
+    prompt = '学生刚刚完成了包装，盒子大小合适。请点评这个方案，并引导学生思考是否还能更省材料。';
+  } else if (fitState === 'nofit') {
+    prompt = '学生尝试包装但装不下。请引导学生想想哪个方向不够大，为什么。';
+  } else if (fitState === 'tight') {
+    prompt = '学生的盒子勉强能装下杯子，非常紧。请提醒学生实际使用中需要留一点空间。';
+  } else if (fitState === 'loose') {
+    prompt = '学生的盒子太大了，很浪费材料。请引导学生思考哪个方向可以缩小。';
+  } else {
+    return;
+  }
+  callDeepSeek(prompt, buildContextString());
+}
+
+// 移动端侧边栏切换
+function toggleSidePanel() {
+  document.getElementById('sidePanel').classList.toggle('open');
+}
+
+// ===== 语音输入（Web Speech API）=====
+let recognition = null;
+let isRecording = false;
+
+function toggleVoiceInput() {
+  if (isRecording) {
+    stopVoiceInput();
+    return;
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    addAiMessage('system', '你的浏览器不支持语音输入，请使用 Chrome 浏览器');
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.lang = 'zh-CN';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+
+  const voiceBtn = document.getElementById('voiceBtn');
+  const aiInput = document.getElementById('aiInput');
+
+  recognition.onstart = function () {
+    isRecording = true;
+    voiceBtn.classList.add('recording');
+    aiInput.placeholder = '正在听你说...';
+  };
+
+  recognition.onresult = function (event) {
+    let transcript = '';
+    for (let i = 0; i < event.results.length; i++) {
+      transcript += event.results[i][0].transcript;
+    }
+    aiInput.value = transcript;
+  };
+
+  recognition.onend = function () {
+    isRecording = false;
+    voiceBtn.classList.remove('recording');
+    aiInput.placeholder = '向AI助教提问...';
+    // 如果有识别到内容，自动发送
+    if (aiInput.value.trim()) {
+      sendChat();
+    }
+  };
+
+  recognition.onerror = function (event) {
+    isRecording = false;
+    voiceBtn.classList.remove('recording');
+    aiInput.placeholder = '向AI助教提问...';
+    if (event.error === 'no-speech') {
+      addAiMessage('system', '没有检测到语音，请再试一次');
+    } else if (event.error === 'not-allowed') {
+      addAiMessage('system', '请允许浏览器使用麦克风权限');
+    }
+  };
+
+  recognition.start();
+}
+
+function stopVoiceInput() {
+  if (recognition) {
+    recognition.stop();
+  }
+  isRecording = false;
+  document.getElementById('voiceBtn').classList.remove('recording');
+  document.getElementById('aiInput').placeholder = '向AI助教提问...';
+}
+
+// ===== 语音播报（SpeechSynthesis）=====
+function speakText(text) {
+  const toggle = document.getElementById('ttsToggle');
+  if (!toggle || !toggle.checked) return;
+  if (!window.speechSynthesis) return;
+
+  // 停止正在播放的
+  window.speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'zh-CN';
+  utterance.rate = 0.95;
+  utterance.pitch = 1.1;
+
+  // 尝试选中文声音
+  const voices = window.speechSynthesis.getVoices();
+  const zhVoice = voices.find(function (v) {
+    return v.lang.indexOf('zh') >= 0;
+  });
+  if (zhVoice) utterance.voice = zhVoice;
+
+  window.speechSynthesis.speak(utterance);
+}
+
+// 预加载语音列表
+if (window.speechSynthesis) {
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = function () {
+    window.speechSynthesis.getVoices();
+  };
+}
+
+// ===== 材料用量图表 =====
+function calcSurfaceArea() {
+  const topBot = boxL * boxW;
+  const frontBack = boxL * boxH;
+  const leftRight = boxW * boxH;
+  return 2 * (topBot + frontBack + leftRight);
+}
+
+function calcFaceAreas() {
+  return {
+    topBot: boxL * boxW,
+    frontBack: boxL * boxH,
+    leftRight: boxW * boxH
+  };
+}
+
+function estimateCupVolume() {
+  if (!currentCupKey) return 0;
+  const p = CUP_PRESETS[currentCupKey];
+  // 近似：截头锥体 V = πh/3 × (R² + r² + Rr)
+  const R = p.topR, r = p.botR, h = p.height;
+  return Math.PI * h / 3 * (R*R + r*r + R*r);
+}
+
+function drawChart() {
+  const chartCanvas = document.getElementById('chartCanvas');
+  if (!chartCanvas) return;
+  const cCtx = chartCanvas.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = chartCanvas.clientWidth;
+  const h = chartCanvas.clientHeight;
+  chartCanvas.width = w * dpr;
+  chartCanvas.height = h * dpr;
+  cCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const faces = calcFaceAreas();
+  const bars = [
+    { label: '上下面', value: faces.topBot, color: '#3b82f6' },
+    { label: '前后面', value: faces.frontBack, color: '#22c55e' },
+    { label: '左右面', value: faces.leftRight, color: '#f59e0b' }
+  ];
+  const maxVal = Math.max(...bars.map(function(b){ return b.value; }), 1);
+
+  const padL = 56, padR = 16, padT = 10, padB = 30;
+  const chartW = w - padL - padR;
+  const chartH = h - padT - padB;
+  const barW = Math.min(50, chartW / bars.length * 0.55);
+  const gap = (chartW - barW * bars.length) / (bars.length + 1);
+
+  // 背景网格
+  cCtx.strokeStyle = '#f0f0f0';
+  cCtx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + chartH - (chartH * i / 4);
+    cCtx.beginPath(); cCtx.moveTo(padL, y); cCtx.lineTo(w - padR, y); cCtx.stroke();
+    cCtx.fillStyle = '#bbb';
+    cCtx.font = '11px "SF Mono", Consolas, monospace';
+    cCtx.textAlign = 'right';
+    cCtx.fillText((maxVal * i / 4).toFixed(0), padL - 6, y + 4);
+  }
+
+  // 单位
+  cCtx.fillStyle = '#bbb';
+  cCtx.font = '10px sans-serif';
+  cCtx.textAlign = 'left';
+  cCtx.fillText('cm²', padL - 4, padT - 1);
+
+  // 柱子
+  for (let i = 0; i < bars.length; i++) {
+    const b = bars[i];
+    const x = padL + gap * (i + 1) + barW * i;
+    const barH = (b.value / maxVal) * chartH;
+    const y = padT + chartH - barH;
+
+    // 柱体
+    cCtx.fillStyle = b.color;
+    cCtx.beginPath();
+    cCtx.roundRect(x, y, barW, barH, [4, 4, 0, 0]);
+    cCtx.fill();
+
+    // 数值
+    cCtx.fillStyle = '#333';
+    cCtx.font = 'bold 12px "SF Mono", Consolas, monospace';
+    cCtx.textAlign = 'center';
+    cCtx.fillText(b.value.toFixed(1), x + barW / 2, y - 5);
+
+    // ×2标注
+    cCtx.fillStyle = b.color;
+    cCtx.font = 'bold 10px sans-serif';
+    cCtx.fillText('×2', x + barW / 2, y - 17);
+
+    // 标签
+    cCtx.fillStyle = '#666';
+    cCtx.font = '12px sans-serif';
+    cCtx.fillText(b.label, x + barW / 2, padT + chartH + 18);
+  }
+
+  // 更新统计数据
+  const area = calcSurfaceArea();
+  const boxVol = boxL * boxW * boxH;
+  const cupVol = estimateCupVolume();
+  const util = boxVol > 0 ? ((cupVol / boxVol) * 100).toFixed(1) : '0.0';
+
+  document.getElementById('statArea').textContent = area.toFixed(1) + ' cm²';
+  document.getElementById('statVol').textContent = boxVol.toFixed(1) + ' cm³';
+  document.getElementById('statUtil').textContent = util + '%';
+}
+
+
+// ===== 四个杯子的参数 =====
+const CUP_PRESETS = {
+  A: {
+    label: 'A 杯',
+    topR: 4.0, botR: 3.3, height: 12.0,
+    handleA: 1.2, handleB: 3.6, handleTube: 0.5,
+    handleMidR: 3.6, handleEmbed: 0.8,
+    totalWidth: 8.0,
+    color: { r: 245, g: 197, b: 24 },
+    tagColor: '#facc15',
+    defaultBox: { L: 8.0, W: 8.0, H: 12.0 }
+  },
+  B: {
+    label: 'B 杯',
+    topR: 3.75, botR: 3.1, height: 6.5,
+    handleA: 1.8, handleB: 2.0, handleTube: 0.45,
+    handleMidR: 3.4, handleEmbed: 0.9,
+    totalWidth: 10.0,
+    color: { r: 96, g: 165, b: 250 },
+    tagColor: '#60a5fa',
+    defaultBox: { L: 10.0, W: 7.5, H: 6.5 }
+  },
+  C: {
+    label: 'C 杯',
+    topR: 5.0, botR: 4.15, height: 10.5,
+    handleA: 1.5, handleB: 3.1, handleTube: 0.5,
+    handleMidR: 4.5, handleEmbed: 1.0,
+    totalWidth: 11.0,
+    color: { r: 74, g: 222, b: 128 },
+    tagColor: '#4ade80',
+    defaultBox: { L: 11.0, W: 10.0, H: 10.5 }
+  },
+  D: {
+    label: 'D 杯',
+    topR: 4.0, botR: 3.3, height: 14.5,
+    handleA: 2.5, handleB: 4.3, handleTube: 0.55,
+    handleMidR: 3.6, handleEmbed: 0.85,
+    totalWidth: 14.0,
+    color: { r: 244, g: 114, b: 182 },
+    tagColor: '#f472b6',
+    defaultBox: { L: 14.0, W: 8.0, H: 14.5 }
+  }
+};
+
+(function showDims() {
+  for (const key in CUP_PRESETS) {
+    const p = CUP_PRESETS[key];
+    const el = document.getElementById('dims' + key);
+    if (el) el.textContent = p.totalWidth + ' × ' + (p.topR * 2).toFixed(1) + ' × ' + p.height + ' cm';
+  }
+})();
+
+let currentCupKey = null;
+let CUP_TOP_R, CUP_BOT_R, CUP_HEIGHT, HANDLE_TUBE, HANDLE_A, HANDLE_B, HANDLE_MID_R;
+let HANDLE_CX, HANDLE_CY;
+let cupColor = { r: 245, g: 197, b: 24 };
+let cupNominalL = 8.0;
+let cupNominalW = 8.0;
+let cupNominalH = 12.0;
+let cupMesh = null;
+let cupAABB = null;
+let handleSpheres = [];
+let vertOut = [];
+
+function selectCup(key) {
+  currentCupKey = key;
+  const p = CUP_PRESETS[key];
+
+  CUP_TOP_R = p.topR;
+  CUP_BOT_R = p.botR;
+  CUP_HEIGHT = p.height;
+  HANDLE_TUBE = p.handleTube;
+  HANDLE_A = p.handleA;
+  HANDLE_B = p.handleB;
+  HANDLE_MID_R = p.handleMidR;
+  HANDLE_CX = -(HANDLE_MID_R + HANDLE_A - p.handleEmbed);
+  HANDLE_CY = CUP_HEIGHT / 2;
+  cupColor = p.color;
+  cupNominalL = p.totalWidth;
+  cupNominalW = p.topR * 2;
+  cupNominalH = p.height;
+
+  cupMesh = buildCupMesh();
+  cupAABB = computeAABB(cupMesh.verts);
+  handleSpheres = buildHandleSpheres();
+  vertOut = new Array(cupMesh.verts.length).fill(false);
+
+  boxL = p.defaultBox.L;
+  boxW = p.defaultBox.W;
+  boxH = p.defaultBox.H;
+  inpL.value = boxL;
+  inpW.value = boxW;
+  inpH.value = boxH;
+  dispL.textContent = boxL;
+  dispW.textContent = boxW;
+  dispH.textContent = boxH;
+  boxPos.x = 16; boxPos.y = boxH / 2; boxPos.z = 0;
+
+  const indicator = document.getElementById('cupIndicator');
+  indicator.textContent = p.label;
+  indicator.style.background = p.tagColor;
+
+  camTheta = Math.PI / 8;
+  camPhi = Math.PI / 2.5;
+  camRadius = 34;
+
+  document.getElementById('selectScreen').classList.add('hidden');
+  document.getElementById('workScreen').classList.remove('hidden');
+
+  // 重置AI对话
+  chatHistory = [];
+  const msgContainer = document.getElementById('aiMessages');
+  msgContainer.innerHTML = '';
+  addAiMessage('system', '你选择了' + p.label + '，现在调整盒子的长、宽、高，然后点"一键包装"试试吧！');
+
+  resize();
+  fitState = 'neutral';
+  checkFit();
+  draw();
+  drawChart();
+}
+
+document.getElementById('btnBack').addEventListener('click', function () {
+  if (animHandle) { cancelAnimationFrame(animHandle); animHandle = null; }
+  document.getElementById('workScreen').classList.add('hidden');
+  document.getElementById('selectScreen').classList.remove('hidden');
+  document.getElementById('sidePanel').classList.remove('open');
+});
+
+// ===== Canvas =====
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0;
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+function resize() {
+  W = canvas.clientWidth;
+  H = canvas.clientHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('resize', function () {
+  resize();
+  if (currentCupKey) { draw(); drawChart(); }
+});
+
+// ===== 向量 =====
+function vec(x, y, z) { return { x: x, y: y, z: z }; }
+function vAdd(a, b) { return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }; }
+function vSub(a, b) { return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }; }
+function vScale(a, s) { return { x: a.x * s, y: a.y * s, z: a.z * s }; }
+function vDot(a, b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+function vCross(a, b) { return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x }; }
+function vLen(a) { return Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z); }
+function vNorm(a) { var l = vLen(a) || 1; return { x: a.x / l, y: a.y / l, z: a.z / l }; }
+
+// ===== 相机 =====
+const camTarget = vec(0, 5, 0);
+let camTheta = Math.PI / 8;
+let camPhi = Math.PI / 2.5;
+let camRadius = 28;
+
+function getCamPos() {
+  return vec(
+    camTarget.x + camRadius * Math.sin(camPhi) * Math.sin(camTheta),
+    camTarget.y + camRadius * Math.cos(camPhi),
+    camTarget.z + camRadius * Math.sin(camPhi) * Math.cos(camTheta)
+  );
+}
+
+function getViewBasis() {
+  const eye = getCamPos();
+  const f = vNorm(vSub(camTarget, eye));
+  const up0 = vec(0, 1, 0);
+  let r = vCross(f, up0);
+  if (vLen(r) < 1e-6) r = vec(1, 0, 0);
+  r = vNorm(r);
+  const u = vCross(r, f);
+  return { eye: eye, r: r, u: u, f: f };
+}
+
+const FOV = 45 * Math.PI / 180;
+function project(p, basis) {
+  const rel = vSub(p, basis.eye);
+  const x = vDot(rel, basis.r);
+  const y = vDot(rel, basis.u);
+  const z = vDot(rel, basis.f);
+  if (z <= 0.01) return null;
+  const scale = (H / 2) / Math.tan(FOV / 2);
+  return { sx: W / 2 + (x / z) * scale, sy: H / 2 - (y / z) * scale, depth: z };
+}
+
+function unproject(sx, sy, basis) {
+  const scale = (H / 2) / Math.tan(FOV / 2);
+  const x = (sx - W / 2) / scale;
+  const y = -(sy - H / 2) / scale;
+  const dir = vNorm({
+    x: basis.r.x * x + basis.u.x * y + basis.f.x,
+    y: basis.r.y * x + basis.u.y * y + basis.f.y,
+    z: basis.r.z * x + basis.u.z * y + basis.f.z
+  });
+  return { origin: basis.eye, dir: dir };
+}
+
+function rayPlane(ray, p0, n) {
+  const denom = vDot(ray.dir, n);
+  if (Math.abs(denom) < 1e-6) return null;
+  const t = vDot(vSub(p0, ray.origin), n) / denom;
+  if (t < 0) return null;
+  return vAdd(ray.origin, vScale(ray.dir, t));
+}
+
+// ===== 杯子网格 =====
+function pointInCupBody(p) {
+  if (p.y < 0 || p.y > CUP_HEIGHT) return false;
+  const t = p.y / CUP_HEIGHT;
+  const r = CUP_BOT_R + (CUP_TOP_R - CUP_BOT_R) * t;
+  return (p.x * p.x + p.z * p.z) < r * r;
+}
+
+function triInsideCupBody(a, b, c) {
+  const cx = (a.x + b.x + c.x) / 3;
+  const cy = (a.y + b.y + c.y) / 3;
+  const cz = (a.z + b.z + c.z) / 3;
+  return pointInCupBody({ x: cx, y: cy, z: cz });
+}
+
+function buildCupMesh() {
+  const verts = [];
+  const tris = [];
+  const stacks = 14, slices = 40;
+  const ringStart = verts.length;
+  for (let i = 0; i <= stacks; i++) {
+    const t = i / stacks;
+    const y = t * CUP_HEIGHT;
+    const r = CUP_BOT_R + (CUP_TOP_R - CUP_BOT_R) * t;
+    for (let j = 0; j < slices; j++) {
+      const a = (j / slices) * Math.PI * 2;
+      verts.push(vec(Math.cos(a) * r, y, Math.sin(a) * r));
+    }
+  }
+  for (let i = 0; i < stacks; i++) {
+    for (let j = 0; j < slices; j++) {
+      const j2 = (j + 1) % slices;
+      const a = ringStart + i * slices + j;
+      const b = ringStart + i * slices + j2;
+      const c = ringStart + (i + 1) * slices + j2;
+      const d = ringStart + (i + 1) * slices + j;
+      tris.push([a, b, c]);
+      tris.push([a, c, d]);
+    }
+  }
+  const botCenterIdx = verts.length;
+  verts.push(vec(0, 0, 0));
+  for (let j = 0; j < slices; j++) {
+    const j2 = (j + 1) % slices;
+    tris.push([botCenterIdx, ringStart + j2, ringStart + j]);
+  }
+  const topCenterIdx = verts.length;
+  verts.push(vec(0, CUP_HEIGHT, 0));
+  const topRingStart = ringStart + stacks * slices;
+  for (let j = 0; j < slices; j++) {
+    const j2 = (j + 1) % slices;
+    tris.push([topCenterIdx, topRingStart + j, topRingStart + j2]);
+  }
+
+  const majorSegs = 40, minorSegs = 16;
+  const handleStart = verts.length;
+  for (let i = 0; i < majorSegs; i++) {
+    const a = (i / majorSegs) * Math.PI * 2;
+    const cx = HANDLE_CX + Math.cos(a) * HANDLE_A;
+    const cy = HANDLE_CY + Math.sin(a) * HANDLE_B;
+    const tanX = -HANDLE_A * Math.sin(a);
+    const tanY = HANDLE_B * Math.cos(a);
+    const tanLen = Math.sqrt(tanX * tanX + tanY * tanY) || 1;
+    const tx = tanX / tanLen, ty = tanY / tanLen;
+    const n1 = vec(0, 0, 1);
+    const n2 = vNorm(vCross(vec(tx, ty, 0), n1));
+    for (let j = 0; j < minorSegs; j++) {
+      const b = (j / minorSegs) * Math.PI * 2;
+      verts.push(vec(
+        cx + (n1.x * Math.cos(b) + n2.x * Math.sin(b)) * HANDLE_TUBE,
+        cy + (n1.y * Math.cos(b) + n2.y * Math.sin(b)) * HANDLE_TUBE,
+        (n1.z * Math.cos(b) + n2.z * Math.sin(b)) * HANDLE_TUBE
+      ));
+    }
+  }
+  for (let i = 0; i < majorSegs; i++) {
+    for (let j = 0; j < minorSegs; j++) {
+      const i2 = (i + 1) % majorSegs;
+      const j2 = (j + 1) % minorSegs;
+      const a = handleStart + i * minorSegs + j;
+      const b = handleStart + i * minorSegs + j2;
+      const c = handleStart + i2 * minorSegs + j2;
+      const d = handleStart + i2 * minorSegs + j;
+      if (!triInsideCupBody(verts[a], verts[b], verts[c])) tris.push([a, b, c]);
+      if (!triInsideCupBody(verts[a], verts[c], verts[d])) tris.push([a, c, d]);
+    }
+  }
+  return { verts: verts, tris: tris };
+}
+
+function computeAABB(verts) {
+  const mn = vec(Infinity, Infinity, Infinity);
+  const mx = vec(-Infinity, -Infinity, -Infinity);
+  for (let i = 0; i < verts.length; i++) {
+    const v = verts[i];
+    if (v.x < mn.x) mn.x = v.x; if (v.y < mn.y) mn.y = v.y; if (v.z < mn.z) mn.z = v.z;
+    if (v.x > mx.x) mx.x = v.x; if (v.y > mx.y) mx.y = v.y; if (v.z > mx.z) mx.z = v.z;
+  }
+  return { min: mn, max: mx };
+}
+
+function buildHandleSpheres() {
+  const arr = [];
+  const N = 48;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const cx = HANDLE_CX + Math.cos(a) * HANDLE_A;
+    const cy = HANDLE_CY + Math.sin(a) * HANDLE_B;
+    if (!pointInCupBody({ x: cx, y: cy, z: 0 })) {
+      arr.push({ cx: cx, cy: cy, r: HANDLE_TUBE * 1.02 });
+    }
+  }
+  return arr;
+}
+
+// ===== 遮挡检测 =====
+function rayHitCupBody(origin, dir, maxT) {
+  const k0 = CUP_BOT_R;
+  const k1 = (CUP_TOP_R - CUP_BOT_R) / CUP_HEIGHT;
+  const ox = origin.x, oy = origin.y, oz = origin.z;
+  const dx = dir.x, dy = dir.y, dz = dir.z;
+  const ry0 = k0 + k1 * oy;
+  const ry1 = k1 * dy;
+  const A = dx * dx + dz * dz - ry1 * ry1;
+  const B = 2 * (ox * dx + oz * dz - ry0 * ry1);
+  const C = ox * ox + oz * oz - ry0 * ry0;
+  if (Math.abs(A) < 1e-9) {
+    if (Math.abs(B) < 1e-9) return false;
+    const t = -C / B;
+    if (t > 0.001 && t < maxT) {
+      const y = oy + t * dy;
+      if (y >= 0 && y <= CUP_HEIGHT) return true;
+    }
+    return false;
+  }
+  const disc = B * B - 4 * A * C;
+  if (disc < 0) return false;
+  const sq = Math.sqrt(disc);
+  const t1 = (-B - sq) / (2 * A);
+  const t2 = (-B + sq) / (2 * A);
+  for (const t of [t1, t2]) {
+    if (t > 0.001 && t < maxT) {
+      const y = oy + t * dy;
+      if (y >= 0 && y <= CUP_HEIGHT) return true;
+    }
+  }
+  return false;
+}
+
+function rayHitHandle(origin, dir, maxT) {
+  for (let i = 0; i < handleSpheres.length; i++) {
+    const s = handleSpheres[i];
+    const ex = origin.x - s.cx, ey = origin.y - s.cy, ez = origin.z;
+    const b = ex * dir.x + ey * dir.y + ez * dir.z;
+    const c = ex * ex + ey * ey + ez * ez - s.r * s.r;
+    const disc = b * b - c;
+    if (disc < 0) continue;
+    const sq = Math.sqrt(disc);
+    if (-b - sq > 0.001 && -b - sq < maxT) return true;
+    if (-b + sq > 0.001 && -b + sq < maxT) return true;
+  }
+  return false;
+}
+
+function pointOccludedByCup(p, eye) {
+  const dir = vSub(p, eye);
+  const maxT = vLen(dir);
+  const d = vNorm(dir);
+  const m = maxT - 0.02;
+  if (m <= 0) return false;
+  if (rayHitCupBody(eye, d, m)) return true;
+  if (rayHitHandle(eye, d, m)) return true;
+  return false;
+}
+
+// ===== 盒子 =====
+let boxL = 10.3, boxW = 7.2, boxH = 7;
+const boxPos = vec(12, 3.5, 0);
+
+function getBoxCorners() {
+  const hx = boxL / 2, hy = boxH / 2, hz = boxW / 2;
+  const p = boxPos;
+  return [
+    vec(p.x - hx, p.y - hy, p.z - hz), vec(p.x + hx, p.y - hy, p.z - hz),
+    vec(p.x + hx, p.y - hy, p.z + hz), vec(p.x - hx, p.y - hy, p.z + hz),
+    vec(p.x - hx, p.y + hy, p.z - hz), vec(p.x + hx, p.y + hy, p.z - hz),
+    vec(p.x + hx, p.y + hy, p.z + hz), vec(p.x - hx, p.y + hy, p.z + hz)
+  ];
+}
+const BOX_EDGES = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+const BOX_FACES = [[0,1,2,3],[4,5,6,7],[0,1,5,4],[2,3,7,6],[1,2,6,5],[0,3,7,4]];
+
+// ===== 适配检测 =====
+const fitTag = document.getElementById('fitTag');
+let fitState = 'neutral';
+
+function checkFit() {
+  if (!cupMesh) return;
+  const hx = boxL / 2, hy = boxH / 2, hz = boxW / 2;
+  const bmin = vec(boxPos.x - hx, boxPos.y - hy, boxPos.z - hz);
+  const bmax = vec(boxPos.x + hx, boxPos.y + hy, boxPos.z + hz);
+
+  let anyOut = false, anyIn = false;
+  for (let i = 0; i < cupMesh.verts.length; i++) {
+    const v = cupMesh.verts[i];
+    const inside = (v.x >= bmin.x && v.x <= bmax.x && v.y >= bmin.y && v.y <= bmax.y && v.z >= bmin.z && v.z <= bmax.z);
+    vertOut[i] = !inside;
+    if (inside) anyIn = true; else anyOut = true;
+  }
+
+  const aabbIntersect = !(
+    cupAABB.max.x < bmin.x || cupAABB.min.x > bmax.x ||
+    cupAABB.max.y < bmin.y || cupAABB.min.y > bmax.y ||
+    cupAABB.max.z < bmin.z || cupAABB.min.z > bmax.z
+  );
+
+  if (anyOut && !aabbIntersect) {
+    fitState = 'neutral';
+    fitTag.textContent = '未包装';
+    fitTag.className = 'fit-tag fit-neutral';
+    return;
+  }
+
+  const gapL = boxL - cupNominalL;
+  const gapW = boxW - cupNominalW;
+  const gapH = boxH - cupNominalH;
+
+  if (gapL < 0 || gapW < 0 || gapH < 0) {
+    fitState = 'nofit';
+    fitTag.textContent = '装不下 ✗';
+    fitTag.className = 'fit-tag fit-no';
+    return;
+  }
+
+  const tooSmallL = gapL < 1.0, tooSmallW = gapW < 1.0, tooSmallH = gapH < 0.5;
+  const tooBigL = gapL > 1.6, tooBigW = gapW > 1.6, tooBigH = gapH > 0.8;
+
+  if (tooSmallL || tooSmallW || tooSmallH) {
+    fitState = 'tight';
+    fitTag.textContent = '勉强装下 ⚠';
+    fitTag.className = 'fit-tag fit-tight';
+  } else if (tooBigL || tooBigW || tooBigH) {
+    fitState = 'loose';
+    fitTag.textContent = '太大了 😅';
+    fitTag.className = 'fit-tag fit-loose';
+  } else {
+    fitState = 'fit';
+    fitTag.textContent = '包装成功 ✓';
+    fitTag.className = 'fit-tag fit-yes';
+  }
+}
+
+// ===== 绘制 =====
+function drawGround(basis) {
+  const S = 30, step = 2;
+  ctx.strokeStyle = '#ececec'; ctx.lineWidth = 1;
+  for (let i = -S; i <= S; i += step) {
+    const a = project(vec(-S, 0, i), basis), b = project(vec(S, 0, i), basis);
+    if (a && b) { ctx.beginPath(); ctx.moveTo(a.sx, a.sy); ctx.lineTo(b.sx, b.sy); ctx.stroke(); }
+    const c = project(vec(i, 0, -S), basis), d = project(vec(i, 0, S), basis);
+    if (c && d) { ctx.beginPath(); ctx.moveTo(c.sx, c.sy); ctx.lineTo(d.sx, d.sy); ctx.stroke(); }
+  }
+  ctx.strokeStyle = '#d4d4d4'; ctx.lineWidth = 1.5;
+  const p1 = project(vec(-S, 0, 0), basis), p2 = project(vec(S, 0, 0), basis);
+  if (p1 && p2) { ctx.beginPath(); ctx.moveTo(p1.sx, p1.sy); ctx.lineTo(p2.sx, p2.sy); ctx.stroke(); }
+  const p3 = project(vec(0, 0, -S), basis), p4 = project(vec(0, 0, S), basis);
+  if (p3 && p4) { ctx.beginPath(); ctx.moveTo(p3.sx, p3.sy); ctx.lineTo(p4.sx, p4.sy); ctx.stroke(); }
+}
+
+const LIGHT_DIR = vNorm(vec(-0.4, 1.0, 0.6));
+
+function drawCup(basis) {
+  if (!cupMesh) return;
+  const verts = cupMesh.verts, tris = cupMesh.tris;
+  const projVerts = new Array(verts.length);
+  for (let i = 0; i < verts.length; i++) projVerts[i] = project(verts[i], basis);
+  const items = [];
+  for (let k = 0; k < tris.length; k++) {
+    const t = tris[k];
+    const pA = projVerts[t[0]], pB = projVerts[t[1]], pC = projVerts[t[2]];
+    if (!pA || !pB || !pC) continue;
+    const vA = verts[t[0]], vB = verts[t[1]], vC = verts[t[2]];
+    const ab = vSub(vB, vA), ac = vSub(vC, vA);
+    const n = vNorm(vCross(ab, ac));
+    const viewDir = vNorm(vSub(vA, basis.eye));
+    if (vDot(n, viewDir) >= 0) continue;
+    const lambert = Math.max(0, vDot(n, LIGHT_DIR));
+    const shade = 0.45 + 0.55 * lambert;
+    const highlight = fitState === 'nofit' && (vertOut[t[0]] || vertOut[t[1]] || vertOut[t[2]]);
+    const depth = (pA.depth + pB.depth + pC.depth) / 3;
+    items.push({ pA: pA, pB: pB, pC: pC, shade: shade, depth: depth, highlight: highlight });
+  }
+  items.sort(function (a, b) { return b.depth - a.depth; });
+  for (let k = 0; k < items.length; k++) {
+    const it = items[k];
+    let r, g, b;
+    if (it.highlight) {
+      r = Math.round(239 * it.shade + 16); g = Math.round(68 * it.shade + 16); b = Math.round(68 * it.shade + 16);
+    } else {
+      r = Math.round(cupColor.r * it.shade); g = Math.round(cupColor.g * it.shade); b = Math.round(cupColor.b * it.shade);
+    }
+    ctx.fillStyle = 'rgb(' + r + ',' + g + ',' + b + ')';
+    ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(it.pA.sx, it.pA.sy); ctx.lineTo(it.pB.sx, it.pB.sy); ctx.lineTo(it.pC.sx, it.pC.sy);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+}
+
+function drawBox(basis) {
+  const corners = getBoxCorners();
+  const projected = corners.map(function (c) { return project(c, basis); });
+  let faceColor, edgeColor;
+  if (fitState === 'fit') { faceColor = 'rgba(134,239,172,0.16)'; edgeColor = '#22c55e'; }
+  else if (fitState === 'tight') { faceColor = 'rgba(253,230,138,0.20)'; edgeColor = '#f59e0b'; }
+  else if (fitState === 'loose') { faceColor = 'rgba(254,215,170,0.18)'; edgeColor = '#f97316'; }
+  else if (fitState === 'nofit') { faceColor = 'rgba(252,165,165,0.18)'; edgeColor = '#ef4444'; }
+  else { faceColor = 'rgba(147,197,253,0.13)'; edgeColor = '#3b82f6'; }
+
+  const faceData = [];
+  for (let k = 0; k < BOX_FACES.length; k++) {
+    const face = BOX_FACES[k];
+    const pts = [projected[face[0]], projected[face[1]], projected[face[2]], projected[face[3]]];
+    if (pts[0] && pts[1] && pts[2] && pts[3]) {
+      faceData.push({ pts: pts, avg: (pts[0].depth + pts[1].depth + pts[2].depth + pts[3].depth) / 4 });
+    }
+  }
+  faceData.sort(function (a, b) { return b.avg - a.avg; });
+  ctx.fillStyle = faceColor;
+  for (let k = 0; k < faceData.length; k++) {
+    const f = faceData[k];
+    ctx.beginPath();
+    ctx.moveTo(f.pts[0].sx, f.pts[0].sy); ctx.lineTo(f.pts[1].sx, f.pts[1].sy);
+    ctx.lineTo(f.pts[2].sx, f.pts[2].sy); ctx.lineTo(f.pts[3].sx, f.pts[3].sy);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.strokeStyle = edgeColor; ctx.lineWidth = 3;
+  const eye = basis.eye;
+  for (let k = 0; k < BOX_EDGES.length; k++) {
+    const e = BOX_EDGES[k];
+    const pA = corners[e[0]], pB = corners[e[1]];
+    const N = 24;
+    let segActive = false;
+    for (let s = 0; s <= N; s++) {
+      const t = s / N;
+      const wp = { x: pA.x + (pB.x - pA.x) * t, y: pA.y + (pB.y - pA.y) * t, z: pA.z + (pB.z - pA.z) * t };
+      const occluded = pointOccludedByCup(wp, eye);
+      const pp = project(wp, basis);
+      if (!pp) { if (segActive) { ctx.stroke(); segActive = false; } continue; }
+      if (!occluded) {
+        if (!segActive) { ctx.beginPath(); ctx.moveTo(pp.sx, pp.sy); segActive = true; }
+        else { ctx.lineTo(pp.sx, pp.sy); }
+      } else {
+        if (segActive) { ctx.stroke(); segActive = false; }
+      }
+    }
+    if (segActive) { ctx.stroke(); segActive = false; }
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+  const basis = getViewBasis();
+  drawGround(basis);
+  drawCup(basis);
+  drawBox(basis);
+}
+
+// ===== 交互 =====
+let isDraggingBox = false;
+let isRotatingView = false;
+let dragPlaneP0 = null, dragPlaneN = null, dragOffset = null;
+let lastX = 0, lastY = 0;
+
+canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+canvas.addEventListener('mousedown', function (e) {
+  e.preventDefault();
+  lastX = e.clientX; lastY = e.clientY;
+  if (e.button === 0 || e.button === 2) isRotatingView = true;
+});
+window.addEventListener('mousemove', function (e) {
+  if (isRotatingView) {
+    camTheta -= (e.clientX - lastX) * 0.01;
+    camPhi -= (e.clientY - lastY) * 0.01;
+    camPhi = Math.max(0.15, Math.min(Math.PI - 0.15, camPhi));
+    lastX = e.clientX; lastY = e.clientY;
+    draw();
+  }
+});
+window.addEventListener('mouseup', function () { isRotatingView = false; });
+canvas.addEventListener('wheel', function (e) {
+  e.preventDefault();
+  camRadius *= (1 + e.deltaY * 0.001);
+  camRadius = Math.max(12, Math.min(120, camRadius));
+  draw();
+}, { passive: false });
+
+let touchMode = null, lastTouchDist = 0, lastTouchMid = { x: 0, y: 0 };
+canvas.addEventListener('touchstart', function (e) {
+  e.preventDefault();
+  if (e.touches.length === 1) {
+    touchMode = 'rotate1'; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+  } else if (e.touches.length === 2) {
+    touchMode = 'rotate2';
+    const t1 = e.touches[0], t2 = e.touches[1];
+    lastTouchDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+    lastTouchMid.x = (t1.clientX + t2.clientX) / 2;
+    lastTouchMid.y = (t1.clientY + t2.clientY) / 2;
+  }
+}, { passive: false });
+canvas.addEventListener('touchmove', function (e) {
+  e.preventDefault();
+  if (touchMode === 'rotate1' && e.touches.length === 1) {
+    const t = e.touches[0];
+    camTheta -= (t.clientX - lastX) * 0.01;
+    camPhi -= (t.clientY - lastY) * 0.01;
+    camPhi = Math.max(0.15, Math.min(Math.PI - 0.15, camPhi));
+    lastX = t.clientX; lastY = t.clientY; draw();
+  } else if (touchMode === 'rotate2' && e.touches.length === 2) {
+    const t1 = e.touches[0], t2 = e.touches[1];
+    const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+    const midX = (t1.clientX + t2.clientX) / 2, midY = (t1.clientY + t2.clientY) / 2;
+    if (lastTouchDist > 0) {
+      camRadius *= (lastTouchDist / dist);
+      camRadius = Math.max(12, Math.min(120, camRadius));
+    }
+    camTheta -= (midX - lastTouchMid.x) * 0.01;
+    camPhi -= (midY - lastTouchMid.y) * 0.01;
+    camPhi = Math.max(0.15, Math.min(Math.PI - 0.15, camPhi));
+    lastTouchDist = dist; lastTouchMid.x = midX; lastTouchMid.y = midY; draw();
+  }
+}, { passive: false });
+canvas.addEventListener('touchend', function (e) {
+  if (e.touches.length === 0) { touchMode = null; lastTouchDist = 0; }
+  else if (e.touches.length === 1) {
+    touchMode = 'rotate1'; lastX = e.touches[0].clientX; lastY = e.touches[0].clientY;
+  }
+}, { passive: false });
+
+// ===== UI =====
+const inpL = document.getElementById('inpL');
+const inpW = document.getElementById('inpW');
+const inpH = document.getElementById('inpH');
+const dispL = document.getElementById('dispL');
+const dispW = document.getElementById('dispW');
+const dispH = document.getElementById('dispH');
+
+function syncFromInputs() {
+  boxL = Math.max(1, parseFloat(inpL.value) || 1);
+  boxW = Math.max(1, parseFloat(inpW.value) || 1);
+  boxH = Math.max(1, parseFloat(inpH.value) || 1);
+  dispL.textContent = boxL; dispW.textContent = boxW; dispH.textContent = boxH;
+  boxPos.y = boxH / 2;
+  checkFit(); draw(); drawChart();
+}
+
+[inpL, inpW, inpH].forEach(function (inp) {
+  inp.addEventListener('input', syncFromInputs);
+  inp.addEventListener('change', syncFromInputs);
+});
+
+document.querySelectorAll('.dim-controls button').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    const dim = btn.dataset.dim;
+    const delta = parseFloat(btn.dataset.delta);
+    const inp = { L: inpL, W: inpW, H: inpH }[dim];
+    const v = Math.max(1, Math.round(((parseFloat(inp.value) || 0) + delta) * 10) / 10);
+    inp.value = v;
+    syncFromInputs();
+  });
+});
+
+// ===== 音频 =====
+const sounds = {
+  fit: new Audio('fit.mp3'), nofit: new Audio('nofit.mp3'),
+  tight: new Audio('tight.mp3'), loose: new Audio('loose.mp3')
+};
+Object.values(sounds).forEach(function (a) { a.volume = 0.85; a.preload = 'auto'; });
+
+function playFitSound(state) {
+  const a = sounds[state]; if (!a) return;
+  Object.values(sounds).forEach(function (s) { if (s !== a) { s.pause(); s.currentTime = 0; } });
+  a.currentTime = 0;
+  const p = a.play(); if (p && p.catch) p.catch(function () {});
+}
+
+// 平滑移动
+let animHandle = null;
+function animateBoxTo(targetX, targetZ, onComplete) {
+  if (animHandle) cancelAnimationFrame(animHandle);
+  const startX = boxPos.x, startZ = boxPos.z;
+  const duration = 500, t0 = performance.now();
+  function step(t) {
+    const k = Math.min(1, (t - t0) / duration);
+    const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+    boxPos.x = startX + (targetX - startX) * e;
+    boxPos.z = startZ + (targetZ - startZ) * e;
+    checkFit(); draw();
+    if (k < 1) animHandle = requestAnimationFrame(step);
+    else { animHandle = null; if (onComplete) onComplete(); }
+  }
+  animHandle = requestAnimationFrame(step);
+}
+
+document.getElementById('btnWrap').addEventListener('click', function () {
+  if (!cupAABB) return;
+  const targetX = (cupAABB.min.x + cupAABB.max.x) / 2;
+  const targetZ = (cupAABB.min.z + cupAABB.max.z) / 2;
+  animateBoxTo(targetX, targetZ, function () {
+    if (fitState === 'fit' || fitState === 'nofit' || fitState === 'tight' || fitState === 'loose') {
+      playFitSound(fitState);
+    }
+    drawChart();
+    // 自动触发AI点评
+    setTimeout(triggerAiReview, 600);
+  });
+});
+
+document.getElementById('btnReset').addEventListener('click', function () {
+  animateBoxTo(16, 0);
+});
+
+</script>
+</body>
+</html>
