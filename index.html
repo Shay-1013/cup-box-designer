@@ -207,7 +207,7 @@
     display: flex; align-items: center; gap: 6px;
   }
   .chart-canvas-wrap {
-    width: 100%; height: 180px;
+    width: 100%; height: 220px;
     position: relative;
   }
   #chartCanvas { width: 100%; height: 100%; display: block; }
@@ -548,7 +548,14 @@ const AI_SYSTEM_PROMPT = `你是一位经验丰富的小学六年级数学老师
 - 当学生盒子太紧时：引导想"你网购收到的杯子，盒子里是不是还有泡沫？""如果100个杯子里有一个稍微大一点点，这个盒子还装得下吗？"
 - 当学生盒子太大时：引导想"如果要寄1000个杯子，每个盒子大1厘米，加起来要多占多少空间？多花多少纸？"
 - 当学生问为什么不能刚好时：用鞋盒、手机盒、牛奶箱等学生熟悉的例子类比
-- 当盒子合适时：追问"你觉得每个方向多留多少合适？有没有一个方向特别需要多留？"（把手方向更突出更脆弱）
+- 当盒子合适时：表扬学生，肯定他的思考过程，不要再引导缩小尺寸
+
+【对比与反馈规则】
+- 如果这不是学生第一次包装（你能从对话记录中看到之前的数据），请先简要指出学生这次调整了什么，比如"你把宽从7.5增加到了8，调得不错"
+- 根据各方向余量逐个判断：余量为负数说明该方向不够；余量在0-0.3cm之间提示太紧；0.5-2cm说合适；超过2.5cm说偏大
+- 已经合适的方向要明确肯定，比如"高度留得刚好"，不要建议继续调整
+- 只指出哪个方向偏大或偏小，不要给出具体应该加几厘米或减几厘米，让学生自己去尝试
+- 适时引导学生旋转3D画面观察，比如"你可以转动画面，从侧面看看把手有没有被盒子完全包住""转到正面看看高度够不够"
 
 重要：你只讨论包装盒设计相关的问题，不讨论其他话题。如果学生问无关的问题，温和地把话题引回来。`;
 
@@ -641,8 +648,13 @@ function buildContextString() {
   const cupVol = estimateCupVolume();
   const util = boxVol > 0 ? ((cupVol / boxVol) * 100).toFixed(1) : 0;
 
-  return `杯子：${p.label}，外轮廓尺寸 ${p.totalWidth}×${(p.topR*2).toFixed(1)}×${p.height} cm（长×宽×高，含把手）。` +
+  const gapL = (boxL - cupNominalL).toFixed(1);
+  const gapW = (boxW - cupNominalW).toFixed(1);
+  const gapH = (boxH - cupNominalH).toFixed(1);
+
+  return `杯子：${p.label}，外轮廓尺寸 ${cupNominalL}×${cupNominalW}×${cupNominalH} cm（长×宽×高，含把手）。` +
     `学生设计的盒子尺寸：${boxL}×${boxW}×${boxH} cm（长×宽×高）。` +
+    `各方向余量：长多${gapL}cm，宽多${gapW}cm，高多${gapH}cm。` +
     `适配状态：${fitTag.textContent}。` +
     `盒子表面积：${area.toFixed(1)} cm²，盒子体积：${boxVol.toFixed(1)} cm³，体积利用率：${util}%。`;
 }
@@ -654,13 +666,13 @@ function triggerAiReview() {
 
   let prompt;
   if (fitState === 'fit') {
-    prompt = '学生刚刚完成了包装，盒子大小合适。请点评这个方案，并引导学生思考是否还能更省材料。';
+    prompt = '学生完成了包装，盒子大小合适。请根据各方向余量数据，具体肯定长、宽、高各方向留得怎么样，表扬学生，语气热情简短，不要引导继续缩小尺寸。';
   } else if (fitState === 'nofit') {
-    prompt = '学生尝试包装但装不下。请引导学生想想哪个方向不够大，为什么。';
+    prompt = '学生尝试包装但装不下。请根据各方向余量数据逐个判断，已经合适的方向要肯定，只指出不够的方向，引导学生旋转画面观察后再调整。';
   } else if (fitState === 'tight') {
-    prompt = '学生的盒子勉强能装下杯子，非常紧。请提醒学生实际使用中需要留一点空间。';
+    prompt = '学生的盒子整体偏紧。请根据各方向余量数据逐个判断，已经合适的方向要肯定，只指出真正需要调整的方向，引导学生旋转画面观察后再调整。';
   } else if (fitState === 'loose') {
-    prompt = '学生的盒子太大了，很浪费材料。请引导学生思考哪个方向可以缩小。';
+    prompt = '学生的盒子整体偏大。请根据各方向余量数据逐个判断，已经合适的方向要肯定，只指出真正偏大的方向，引导学生旋转画面观察后再调整。';
   } else {
     return;
   }
@@ -818,7 +830,7 @@ function drawChart() {
   ];
   const maxVal = Math.max(...bars.map(function(b){ return b.value; }), 1);
 
-  const padL = 56, padR = 16, padT = 10, padB = 30;
+  const padL = 56, padR = 16, padT = 38, padB = 30;
   const chartW = w - padL - padR;
   const chartH = h - padT - padB;
   const barW = Math.min(50, chartW / bars.length * 0.55);
@@ -931,8 +943,16 @@ const CUP_PRESETS = {
 (function showDims() {
   for (const key in CUP_PRESETS) {
     const p = CUP_PRESETS[key];
-    const el = document.getElementById('dims' + key);
-    if (el) el.textContent = p.totalWidth + ' × ' + (p.topR * 2).toFixed(1) + ' × ' + p.height + ' cm';
+    // 用数学公式估算真实尺寸（不构建网格）
+    var hcx = -(p.handleMidR + p.handleA - p.handleEmbed);
+    var handleMinX = hcx - p.handleA - p.handleTube;
+    var bodyMaxX = p.topR;
+    var realL = Math.round((bodyMaxX - handleMinX) * 10) / 10;
+    var realW = Math.round(p.topR * 2 * 10) / 10;
+    var realH = p.height;
+    p.estL = realL; p.estW = realW; p.estH = realH;
+    var el = document.getElementById('dims' + key);
+    if (el) el.textContent = realL + ' × ' + realW + ' × ' + realH + ' cm';
   }
 })();
 
@@ -962,14 +982,16 @@ function selectCup(key) {
   HANDLE_CX = -(HANDLE_MID_R + HANDLE_A - p.handleEmbed);
   HANDLE_CY = CUP_HEIGHT / 2;
   cupColor = p.color;
-  cupNominalL = p.totalWidth;
-  cupNominalW = p.topR * 2;
-  cupNominalH = p.height;
 
   cupMesh = buildCupMesh();
   cupAABB = computeAABB(cupMesh.verts);
   handleSpheres = buildHandleSpheres();
   vertOut = new Array(cupMesh.verts.length).fill(false);
+
+  // 用实际3D模型的真实尺寸，而非手动设置的值
+  cupNominalL = Math.round((cupAABB.max.x - cupAABB.min.x) * 10) / 10;
+  cupNominalW = Math.round((cupAABB.max.z - cupAABB.min.z) * 10) / 10;
+  cupNominalH = Math.round((cupAABB.max.y - cupAABB.min.y) * 10) / 10;
 
   boxL = p.defaultBox.L;
   boxW = p.defaultBox.W;
