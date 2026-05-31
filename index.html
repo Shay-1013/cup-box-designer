@@ -552,9 +552,10 @@ const AI_SYSTEM_PROMPT = `你是一位经验丰富的小学六年级数学老师
 
 【对比与反馈规则】
 - 如果这不是学生第一次包装（你能从对话记录中看到之前的数据），请先简要指出学生这次调整了什么，比如"你把宽从7.5增加到了8，调得不错"
-- 根据各方向余量逐个判断：余量为负数说明该方向不够；余量在0-0.3cm之间提示太紧；0.5-2cm说合适；超过2.5cm说偏大
-- 已经合适的方向要明确肯定，比如"高度留得刚好"，不要建议继续调整
-- 只指出哪个方向偏大或偏小，不要给出具体应该加几厘米或减几厘米，让学生自己去尝试
+- 严格按照上下文中提供的"网页判定标准"来判断每个方向：将学生的盒子长、宽、高分别与合适范围对比，低于下限的说偏紧需要加大，在范围内的说合适要肯定，高于上限的说偏大可以缩小
+- 判定标准仅供你内部判断使用，回复中不要提及具体的标准数值、下限上限数字，只说"偏紧""合适""偏大"即可
+- 已经在合适范围内的方向要明确肯定，不要建议继续调整
+- 只指出哪个方向偏大或偏小，不要给出具体应该改成几厘米，让学生自己去尝试
 - 适时引导学生旋转3D画面观察，比如"你可以转动画面，从侧面看看把手有没有被盒子完全包住""转到正面看看高度够不够"
 
 重要：你只讨论包装盒设计相关的问题，不讨论其他话题。如果学生问无关的问题，温和地把话题引回来。`;
@@ -652,10 +653,16 @@ function buildContextString() {
   const gapW = (boxW - cupNominalW).toFixed(1);
   const gapH = (boxH - cupNominalH).toFixed(1);
 
+  // 与网页checkFit一致的判定范围
+  const fitLmin = (cupNominalL + 1.0).toFixed(1), fitLmax = (cupNominalL + 1.6).toFixed(1);
+  const fitWmin = (cupNominalW + 1.0).toFixed(1), fitWmax = (cupNominalW + 1.6).toFixed(1);
+  const fitHmin = (cupNominalH + 0.5).toFixed(1), fitHmax = (cupNominalH + 0.8).toFixed(1);
+
   return `杯子：${p.label}，外轮廓尺寸 ${cupNominalL}×${cupNominalW}×${cupNominalH} cm（长×宽×高，含把手）。` +
     `学生设计的盒子尺寸：${boxL}×${boxW}×${boxH} cm（长×宽×高）。` +
     `各方向余量：长多${gapL}cm，宽多${gapW}cm，高多${gapH}cm。` +
     `适配状态：${fitTag.textContent}。` +
+    `网页判定标准：长合适范围${fitLmin}-${fitLmax}cm，宽合适范围${fitWmin}-${fitWmax}cm，高合适范围${fitHmin}-${fitHmax}cm。低于下限判定为勉强装下，高于上限判定为太大了，低于杯子尺寸判定为装不下。` +
     `盒子表面积：${area.toFixed(1)} cm²，盒子体积：${boxVol.toFixed(1)} cm³，体积利用率：${util}%。`;
 }
 
